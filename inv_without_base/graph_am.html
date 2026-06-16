@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boîte à outils IA — DIGIT_HUM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  :root{
+    --canvas:#d6d3ce; --surface:#ebe9e3; --card:#ffffff;
+    --ink:#2e2a26; --charcoal:#3a332b; --muted:#807b73;
+    --hair:#dad6cd; --hair-strong:#cfc9bd;
+    --gold:#c89a18; --gold-fill:#f4c842; --gold-edge:#d49b18; --gold-bright:#f0b820;
+    --ochre:#b06a3c;
+    --radius:7px; --maxw:1200px;
+    --serif:'Bricolage Grotesque','Hanken Grotesk',system-ui,sans-serif;
+    --sans:'Hanken Grotesk',-apple-system,Segoe UI,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--canvas);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;padding:28px 16px 60px}
+  .shell{max-width:var(--maxw);margin:0 auto;background:var(--surface);
+    border:1px solid var(--hair-strong);box-shadow:0 1px 0 #fff inset, 0 18px 40px -28px rgba(0,0,0,.5)}
+
+  .hero{position:relative;padding:46px 48px 30px;border-bottom:1px solid var(--hair);overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:0;
+    background:
+      linear-gradient(105deg,rgba(244,200,66,.22) 0%,rgba(232,122,110,.08) 45%,rgba(181,156,214,.10) 85%,transparent),
+      repeating-linear-gradient(90deg,rgba(0,0,0,.025) 0 3px,transparent 3px 11px),
+      repeating-linear-gradient(0deg,rgba(0,0,0,.02) 0 3px,transparent 3px 11px);
+    pointer-events:none}
+  .mosaic{position:absolute;top:26px;right:34px;pointer-events:none;
+    display:grid;grid-template-columns:repeat(5,14px);grid-auto-rows:14px;gap:3px;opacity:.95}
+  .mosaic span{display:block;border-radius:2px}
+  @media(max-width:680px){.mosaic{display:none}}
+  .crumb{font-size:.8rem;font-style:italic;color:var(--muted);letter-spacing:.02em;margin-bottom:14px}
+  .crumb b{font-style:normal;color:var(--ink);font-weight:500}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.1rem,5vw,3rem);letter-spacing:.01em;line-height:1.04;position:relative}
+  .sub{font-family:var(--serif);font-style:italic;color:var(--muted);font-size:1.18rem;margin-top:6px}
+  .intro{max-width:62ch;margin-top:18px;color:#403d38;font-size:.98rem}
+  .intro a{color:var(--ochre);text-decoration:none;border-bottom:1px solid currentColor}
+
+  .chooser{padding:30px 48px 26px;border-bottom:1px solid var(--hair)}
+  .eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:700}
+  .chooser h2{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin:8px 0 18px}
+  .tasks{display:flex;flex-wrap:wrap;gap:10px}
+  .task{appearance:none;cursor:pointer;font-family:var(--sans);font-size:.92rem;font-weight:600;
+    color:var(--ink);background:#fff;border:1px solid var(--hair-strong);border-radius:var(--radius);
+    padding:11px 17px;letter-spacing:.005em;
+    transition:transform .15s ease, background .2s ease, border-color .2s ease}
+  .task:hover{transform:translateY(-2px);border-color:var(--gold-edge);background:#fbf7ec}
+  .task[aria-pressed="true"]{background:var(--gold-fill);color:var(--ink);border-color:var(--gold-edge);font-weight:700}
+  .task .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px;vertical-align:1px}
+  .task.ghost{background:transparent;color:var(--muted);border:1px dashed var(--hair-strong)}
+  .task.ghost:hover{color:var(--ink);border-color:var(--ink)}
+
+  .toolbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:18px 48px;border-bottom:1px solid var(--hair)}
+  .seg{display:inline-flex;border:1px solid var(--hair-strong);border-radius:var(--radius);overflow:hidden;background:#fff}
+  .seg button{appearance:none;cursor:pointer;background:#fff;border:0;font-family:var(--sans);
+    font-weight:600;font-size:.86rem;color:var(--muted);padding:9px 16px;letter-spacing:.02em;transition:.2s}
+  .seg button+button{border-left:1px solid var(--hair-strong)}
+  .seg button[aria-selected="true"]{background:var(--gold-fill);color:var(--ink)}
+  .search{flex:1;min-width:200px;position:relative}
+  .search input{width:100%;font-family:var(--sans);font-size:.92rem;padding:10px 14px 10px 34px;
+    border:1px solid var(--hair-strong);border-radius:var(--radius);background:#fff;color:var(--ink)}
+  .search input:focus{outline:2px solid var(--gold);outline-offset:-1px}
+  .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted)}
+
+  .filters{padding:18px 48px 6px;border-bottom:1px solid var(--hair)}
+  .fgroup{display:flex;align-items:baseline;gap:12px;padding:7px 0;flex-wrap:wrap}
+  .fgroup .label{flex:0 0 165px;font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);font-weight:700;padding-top:4px}
+  .fgroup .label .hint{display:block;font-size:.68rem;color:#a8a39b;letter-spacing:0;text-transform:none;font-weight:500;font-style:italic;margin-top:2px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;flex:1}
+  .chip{appearance:none;cursor:pointer;font-family:var(--sans);font-size:.8rem;
+    padding:5px 11px;border:1px solid var(--hair-strong);border-radius:30px;
+    background:#fff;color:#4a463f;transition:.15s;white-space:nowrap}
+  .chip:hover{border-color:var(--ink)}
+  .chip[aria-pressed="true"]{background:var(--gold-fill);color:var(--ink);border-color:var(--gold-edge);font-weight:600}
+  .chip .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:1px}
+  .reset{margin:12px 0 4px;background:none;border:0;color:var(--ochre);
+    font-family:var(--sans);font-size:.82rem;cursor:pointer;text-decoration:underline;padding:0}
+
+  .count{padding:16px 48px 4px;font-family:var(--serif);font-style:italic;color:var(--muted);font-size:.95rem}
+  .count b{font-style:normal;color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px;padding:14px 48px 36px}
+  .card{background:var(--card);border:1px solid var(--hair-strong);border-radius:var(--radius);
+    padding:18px 20px;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden;
+    cursor:pointer;animation:rise .5s ease both;transition:transform .2s ease, box-shadow .2s ease}
+  .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px -16px rgba(0,0,0,.35)}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--gold-fill))}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .card h3{font-family:var(--serif);font-weight:600;font-size:1.18rem;line-height:1.18}
+  .pays{font-size:.72rem;color:var(--muted);white-space:nowrap;letter-spacing:.02em;padding-top:4px;text-align:right}
+  .meta{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:.7rem;letter-spacing:.04em;padding:3px 9px;border-radius:3px;background:#efece4;color:#5a564e;font-weight:600}
+  .tag.fin{background:var(--accent,var(--gold-fill));color:#1c1b18}
+  .tag.fin.alt{background:transparent;border:1px solid var(--accent2,var(--hair-strong));color:#5a564e}
+  .tag.type{background:#fff;border:1px solid var(--hair-strong);color:#5a564e}
+  .feats{display:flex;flex-wrap:wrap;gap:5px}
+  .feat{font-size:.72rem;color:var(--muted);background:#f0ede6;padding:2px 8px;border-radius:3px;font-weight:500}
+  .foot{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:8px;border-top:1px solid var(--hair);font-size:.74rem;color:var(--muted)}
+  .foot .sep{color:#cdc7ba}
+  .empty{padding:40px 24px;text-align:center;color:var(--muted);font-family:var(--serif);font-style:italic;font-size:1.05rem;grid-column:1/-1}
+
+  /* ---- VUE D'ENSEMBLE — parallel categories ---- */
+  .overview{padding:24px 48px 40px}
+  .ov-hint{font-family:var(--serif);font-style:italic;color:var(--muted);margin-bottom:14px;font-size:.95rem}
+  .ov-hint b{font-style:normal;font-weight:600;color:#4a463f}
+  .parcat-wrap{background:#fff;border:1px solid var(--hair-strong);border-radius:var(--radius);
+    padding:18px 14px;overflow:auto}
+  #parcats{display:block;max-width:100%;height:auto}
+  #parcats text{font-family:var(--sans)}
+  .parcat-node{transition:opacity .15s, fill .15s}
+  .parcat-node.active{fill:var(--gold-edge)!important}
+  .parcat-ribbon{transition:opacity .15s}
+
+  .ov-results{margin-top:30px;padding-top:22px;border-top:1px solid var(--hair)}
+  .ov-results .head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .ov-results .head h3{font-family:var(--serif);font-weight:500;font-size:1.2rem;color:var(--ink)}
+  .ov-results .head .ctrl{display:flex;gap:14px;align-items:center}
+  .ov-results .head a, .ov-results .head button{background:none;border:0;color:var(--ochre);
+    font-family:var(--sans);font-size:.84rem;cursor:pointer;text-decoration:underline;padding:0}
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+  .ov-empty{font-family:var(--serif);font-style:italic;color:var(--muted);text-align:center;
+    padding:36px 24px;background:#fff;border:1px dashed var(--hair-strong);border-radius:var(--radius)}
+
+  #suntip{position:fixed;pointer-events:none;background:var(--charcoal);color:#ebe9e3;
+    font-family:var(--sans);font-size:.8rem;padding:7px 11px;border-radius:3px;
+    opacity:0;transition:opacity .12s;z-index:30;max-width:260px;line-height:1.4}
+  #suntip b{color:var(--gold-fill)}
+  #suntip i{color:#cfc9bd}
+
+  /* ---- MODAL ---- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(46,42,38,.62);
+    display:flex;align-items:center;justify-content:center;
+    z-index:50;padding:20px;animation:fadeIn .18s ease}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .modal-box{background:var(--surface);border:1px solid var(--hair-strong);border-radius:8px;
+    max-width:580px;width:100%;max-height:88vh;overflow:auto;position:relative;
+    box-shadow:0 24px 70px -20px rgba(0,0,0,.55);animation:popIn .22s cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes popIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  .modal-header{background:var(--gold-fill);padding:18px 28px;border-bottom:1px solid var(--gold-edge);position:relative}
+  .modal-header h2{font-family:var(--serif);font-weight:700;font-size:1.4rem;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--ink)}
+  .modal-close{position:absolute;top:13px;right:15px;width:30px;height:30px;border-radius:50%;
+    background:rgba(46,42,38,.18);border:0;color:var(--ink);font-size:20px;cursor:pointer;line-height:1;
+    display:flex;align-items:center;justify-content:center;transition:.18s}
+  .modal-close:hover{background:rgba(46,42,38,.32)}
+  .modal-body{padding:22px 28px 26px}
+  .modal-body .row{display:flex;gap:14px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--hair)}
+  .modal-body .row:last-of-type{border-bottom:0}
+  .modal-body .row .k{font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;flex:0 0 140px}
+  .modal-body .row .v{font-size:.94rem;color:#2e2a26;flex:1}
+  .modal-body .row .v.muted{color:var(--muted);font-style:italic}
+  .modal-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;padding-top:18px;border-top:1px solid var(--hair)}
+  .modal-tags .mtag{background:#dad6cd;color:#2e2a26;font-size:.84rem;padding:6px 14px;border-radius:20px;font-weight:500}
+
+  footer{padding:22px 48px;border-top:1px solid var(--hair);color:var(--muted);font-size:.82rem}
+  footer b{color:var(--ink)}
+  [hidden]{display:none!important}
+  @media(max-width:680px){
+    body{padding:10px 8px 40px}
+    .hero,.chooser,.toolbar,.filters,.count,.grid,.overview,footer{padding-left:22px;padding-right:22px}
+    .grid,.ov-grid{grid-template-columns:1fr}
+    .fgroup .label{flex-basis:100%}
+    .modal-body .row{flex-direction:column;gap:2px}
+    .modal-body .row .k{flex:none}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="hero">
+    <div class="mosaic" aria-hidden="true">
+      <span style="background:#e87a6e"></span><span style="background:#f4c842"></span><span></span><span style="background:#9ac572"></span><span style="background:#b59cd6"></span>
+      <span style="background:#f4c842"></span><span style="background:#e87a6e"></span><span style="background:#9ac572"></span><span style="background:#b59cd6"></span><span></span>
+      <span></span><span style="background:#9ac572"></span><span style="background:#b59cd6"></span><span style="background:#e87a6e"></span><span style="background:#f4c842"></span>
+      <span style="background:#b59cd6"></span><span></span><span style="background:#e87a6e"></span><span style="background:#f4c842"></span><span style="background:#9ac572"></span>
+    </div>
+    <div class="crumb">Accueil &rsaquo; Ressources &rsaquo; <b>Boîte à outils</b></div>
+    <h1>Inventaire IA</h1>
+    <div class="sub">Repérer, comparer, choisir</div>
+    <p class="intro">Inventaire raisonné d'outils d'intelligence artificielle utiles aux humanités numériques.
+      Filtrez par usage, type d'entrée, modèle économique ou éditeur — ou laissez-vous guider par ce que vous souhaitez faire.
+      <a href="#">Suggérer un outil</a>.</p>
+  </header>
+
+  <section class="chooser" aria-label="Guide">
+    <div class="eyebrow">Par où commencer</div>
+    <h2>Que souhaitez-vous faire&nbsp;?</h2>
+    <div class="tasks" id="tasks"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="seg" role="tablist" aria-label="Mode d'affichage">
+      <button id="tab-cat" role="tab" aria-selected="true">Catalogue</button>
+      <button id="tab-ov"  role="tab" aria-selected="false">Vue d'ensemble</button>
+    </div>
+    <div class="search" id="searchWrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Rechercher un outil…" aria-label="Recherche">
+    </div>
+  </div>
+
+  <div class="filters" id="filters"></div>
+
+  <div id="catalogue">
+    <div class="count" id="count"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="overview" id="overview" hidden>
+    <div class="ov-hint">Diagramme parallèle des quatre axes. Chaque ruban est un outil, coloré par sa <b>grande finalité</b>.
+      Cliquez un nœud ou un ruban pour filtrer le catalogue.</div>
+    <div class="parcat-wrap">
+      <svg id="parcats" width="980" height="560" viewBox="0 0 980 560"
+           role="img" aria-label="Diagramme des outils par 4 dimensions"></svg>
+    </div>
+    <div class="ov-results" id="ov-results"></div>
+  </div>
+
+  <footer><b>Prototype</b> — 62 outils issus du tableau d'inventaire <i>DIGIT_HUM</i>. Taxonomie : type d'entrée · grandes finalités · tags spécifiques · tarification / licence · pays.</footer>
+</div>
+
+<div id="suntip"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <header class="modal-header">
+      <h2 id="modal-title"></h2>
+      <button class="modal-close" id="modal-close" aria-label="Fermer">&times;</button>
+    </header>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+/* ================ DONNÉES ================ */
+const TOOLS = [
+  {"nom": "Active Tigger", "types": ["Texte"], "finalites": ["Analyse & Traitement"], "tags": ["Traitement du langage naturel (NLP)"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "AIKON", "types": ["Image"], "finalites": ["Analyse & Traitement"], "tags": ["Vision par ordinateur"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Arkindex", "types": ["Image"], "finalites": ["Analyse & Traitement"], "tags": ["OCR / HTR", "Vision par ordinateur"], "tarif": "Freemium", "licences": ["Open Source"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "Asta", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "BaOIA", "types": ["Image", "Texte"], "finalites": ["Analyse & Traitement"], "tags": ["Vision par ordinateur", "Traitement du langage naturel (NLP)", "OCR / HTR"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "BERTopic", "types": ["Texte"], "finalites": ["Analyse & Traitement"], "tags": ["Traitement du langage naturel (NLP)"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["Autres"], "pays_label": "International"},
+  {"nom": "Brave Leo", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Chatbot de recherche (RAG)"], "tarif": "Gratuit", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Canva", "types": ["Texte", "Image"], "finalites": ["Création & Génération"], "tags": ["Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Autres"], "pays_label": "Australie"},
+  {"nom": "ChatGPT", "types": ["Texte", "Image", "Audio / Vidéo"], "finalites": ["Création & Génération", "Analyse & Traitement"], "tags": ["Rédaction textuelle", "Développement de code", "Chatbot de recherche (RAG)", "Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Clarifai", "types": ["Image", "Texte"], "finalites": ["Analyse & Traitement"], "tags": ["Vision par ordinateur", "Traitement du langage naturel (NLP)"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Claude", "types": ["Texte", "Image"], "finalites": ["Création & Génération", "Analyse & Traitement"], "tags": ["Rédaction textuelle", "Développement de code", "Chatbot de recherche (RAG)"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Connected Papers", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Cartographie de littérature"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Consensus", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Copilot (Microsoft)", "types": ["Texte", "Image"], "finalites": ["Création & Génération", "Recherche & Veille"], "tags": ["Rédaction textuelle", "Développement de code", "Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Co-Storm", "types": ["Texte"], "finalites": ["Création & Génération"], "tags": ["Rédaction textuelle"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "DALL·E", "types": ["Texte"], "finalites": ["Création & Génération"], "tags": ["Génération d'images"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "DeepL Translator", "types": ["Texte"], "finalites": ["Traduction & Correction"], "tags": ["Traduction automatique"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Europe"], "pays_label": "Allemagne"},
+  {"nom": "DeepL Write", "types": ["Texte"], "finalites": ["Traduction & Correction"], "tags": ["Assistant d'écriture"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Europe"], "pays_label": "Allemagne"},
+  {"nom": "DeepSeek", "types": ["Texte"], "finalites": ["Création & Génération", "Analyse & Traitement"], "tags": ["Développement de code", "Rédaction textuelle"], "tarif": "Freemium", "licences": ["Open Source"], "pays": ["Autres"], "pays_label": "Chine"},
+  {"nom": "Dimensions Research", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "DuckDuckGo AI Chat", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Chatbot de recherche (RAG)"], "tarif": "Gratuit", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Elicit", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Emmy (CNRS)", "types": ["Texte"], "finalites": ["Création & Génération", "Recherche & Veille"], "tags": ["Rédaction textuelle", "Développement de code", "Chatbot de recherche (RAG)"], "tarif": "Gratuit", "licences": ["Propriétaire"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "eScriptorium", "types": ["Image"], "finalites": ["Analyse & Traitement"], "tags": ["OCR / HTR"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "Gemini", "types": ["Texte", "Image", "Audio / Vidéo"], "finalites": ["Création & Génération", "Analyse & Traitement"], "tags": ["Rédaction textuelle", "Développement de code", "Chatbot de recherche (RAG)", "Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Ginger AI", "types": ["Texte"], "finalites": ["Traduction & Correction"], "tags": ["Assistant d'écriture"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Autres", "États-Unis"], "pays_label": "États-Unis / Israël"},
+  {"nom": "Gladia", "types": ["Audio / Vidéo"], "finalites": ["Analyse & Traitement"], "tags": ["ASR / Transcription"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "Google NotebookLM", "types": ["Texte"], "finalites": ["Analyse & Traitement", "Recherche & Veille"], "tags": ["Chatbot de recherche (RAG)"], "tarif": "Gratuit", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Google Traduction", "types": ["Texte", "Audio / Vidéo", "Image"], "finalites": ["Traduction & Correction"], "tags": ["Traduction automatique"], "tarif": "Gratuit", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Google Vision AI", "types": ["Image"], "finalites": ["Analyse & Traitement"], "tags": ["Vision par ordinateur", "OCR / HTR"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Grok", "types": ["Texte", "Image"], "finalites": ["Création & Génération"], "tags": ["Rédaction textuelle", "Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Hugging Face (Chat)", "types": ["Texte", "Image"], "finalites": ["Création & Génération", "Analyse & Traitement"], "tags": ["Rédaction textuelle", "Développement de code"], "tarif": "Freemium", "licences": ["Open Source"], "pays": ["France", "États-Unis"], "pays_label": "France / É.-U."},
+  {"nom": "Jasper AI", "types": ["Texte"], "finalites": ["Création & Génération"], "tags": ["Rédaction textuelle"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "LanguageWire", "types": ["Texte"], "finalites": ["Traduction & Correction"], "tags": ["Traduction automatique"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["Europe"], "pays_label": "Danemark"},
+  {"nom": "Leonardo.AI", "types": ["Texte", "Image"], "finalites": ["Création & Génération"], "tags": ["Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Autres"], "pays_label": "Australie"},
+  {"nom": "LitMaps", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Cartographie de littérature"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Autres"], "pays_label": "Nouvelle-Zélande"},
+  {"nom": "Mage.Space", "types": ["Texte"], "finalites": ["Création & Génération"], "tags": ["Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Magnific", "types": ["Image", "Texte"], "finalites": ["Création & Génération"], "tags": ["Génération d'images"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Europe"], "pays_label": "Espagne"},
+  {"nom": "Medite", "types": ["Texte"], "finalites": ["Analyse & Traitement"], "tags": ["Traitement du langage naturel (NLP)"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "Microsoft Translator", "types": ["Texte", "Audio / Vidéo"], "finalites": ["Traduction & Correction"], "tags": ["Traduction automatique"], "tarif": "Gratuit", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "MidJourney", "types": ["Texte"], "finalites": ["Création & Génération"], "tags": ["Génération d'images"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Mistral AI (Le Chat)", "types": ["Texte"], "finalites": ["Création & Génération", "Analyse & Traitement"], "tags": ["Rédaction textuelle", "Développement de code", "Chatbot de recherche (RAG)"], "tarif": "Freemium", "licences": ["Open Source", "Propriétaire"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "ModernMT", "types": ["Texte"], "finalites": ["Traduction & Correction"], "tags": ["Traduction automatique"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["Europe"], "pays_label": "Italie"},
+  {"nom": "NVivo", "types": ["Texte", "Audio / Vidéo"], "finalites": ["Analyse & Traitement"], "tags": ["Traitement du langage naturel (NLP)"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "OtterAI", "types": ["Audio / Vidéo"], "finalites": ["Analyse & Traitement"], "tags": ["ASR / Transcription"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Panoptic", "types": ["Image"], "finalites": ["Analyse & Traitement"], "tags": ["Vision par ordinateur"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "Perplexity AI", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Chatbot de recherche (RAG)"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Poe", "types": ["Texte", "Image"], "finalites": ["Recherche & Veille", "Création & Génération"], "tags": ["Chatbot de recherche (RAG)", "Rédaction textuelle"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "ResearchRabbit", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Cartographie de littérature"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Autres"], "pays_label": "Nouvelle-Zélande"},
+  {"nom": "ScholarAI", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "SciSpace", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Scite Assistant", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Semantic Scholar", "types": ["Texte"], "finalites": ["Recherche & Veille"], "tags": ["Analyse bibliographique"], "tarif": "Gratuit", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "SpaCy - UDPipe", "types": ["Texte"], "finalites": ["Analyse & Traitement"], "tags": ["Traitement du langage naturel (NLP)"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["Europe"], "pays_label": "All. / Rép. Tchèque"},
+  {"nom": "Stable Diffusion", "types": ["Texte"], "finalites": ["Création & Génération"], "tags": ["Génération d'images"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["Europe"], "pays_label": "Royaume-Uni"},
+  {"nom": "SYSTRAN Translate", "types": ["Texte"], "finalites": ["Traduction & Correction"], "tags": ["Traduction automatique"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["France"], "pays_label": "France"},
+  {"nom": "Tableau Next", "types": ["Texte"], "finalites": ["Analyse & Traitement"], "tags": ["Chatbot de recherche (RAG)"], "tarif": "Payant / Sur abonnement", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "TinEye", "types": ["Image"], "finalites": ["Recherche & Veille"], "tags": ["Vision par ordinateur"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Autres"], "pays_label": "Canada"},
+  {"nom": "Transkribus", "types": ["Image"], "finalites": ["Analyse & Traitement"], "tags": ["OCR / HTR"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["Europe"], "pays_label": "Autriche"},
+  {"nom": "VGG Image Search", "types": ["Image"], "finalites": ["Recherche & Veille"], "tags": ["Vision par ordinateur"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["Europe"], "pays_label": "Royaume-Uni"},
+  {"nom": "WhisperAI", "types": ["Audio / Vidéo"], "finalites": ["Analyse & Traitement"], "tags": ["ASR / Transcription"], "tarif": "Gratuit", "licences": ["Open Source"], "pays": ["États-Unis"], "pays_label": "États-Unis"},
+  {"nom": "Wolfram Alpha", "types": ["Texte"], "finalites": ["Recherche & Veille", "Analyse & Traitement"], "tags": ["Chatbot de recherche (RAG)"], "tarif": "Freemium", "licences": ["Propriétaire"], "pays": ["États-Unis"], "pays_label": "États-Unis"}
+];
+
+const FINALITES = ["Création & Génération","Recherche & Veille","Analyse & Traitement","Traduction & Correction"];
+const FIN_COLORS = {
+  "Création & Génération":"#e87a6e",
+  "Recherche & Veille":"#f4c842",
+  "Analyse & Traitement":"#b59cd6",
+  "Traduction & Correction":"#9ac572",
+};
+const TAG_TAXONOMY = {
+  "Création & Génération":["Rédaction textuelle","Génération d'images","Développement de code"],
+  "Recherche & Veille":["Chatbot de recherche (RAG)","Analyse bibliographique","Cartographie de littérature"],
+  "Analyse & Traitement":["OCR / HTR","ASR / Transcription","Vision par ordinateur","Traitement du langage naturel (NLP)"],
+  "Traduction & Correction":["Traduction automatique","Assistant d'écriture"],
+};
+const ALL_TAGS = Object.values(TAG_TAXONOMY).flat();
+const TYPES = ["Texte","Image","Audio / Vidéo"];
+const TARIFS = ["Gratuit","Freemium","Payant / Sur abonnement"];
+const LICENCES = ["Open Source","Propriétaire"];
+const PAYS = ["France","Europe","États-Unis","Autres"];
+
+const state = {
+  view:"catalogue", search:"",
+  filters:{ types:new Set(), finalites:new Set(), tags:new Set(),
+    tarif:new Set(), licences:new Set(), pays:new Set() }
+};
+function hasAnyFilter(){
+  for(const k in state.filters) if(state.filters[k].size>0) return true;
+  return !!state.search;
+}
+
+/* ================ GUIDE D'ENTRÉE ================ */
+const tasksEl=document.getElementById("tasks");
+FINALITES.forEach(fin=>{
+  const b=document.createElement("button");
+  b.className="task"; b.dataset.fin=fin; b.setAttribute("aria-pressed","false");
+  b.innerHTML=`<span class="dot" style="background:${FIN_COLORS[fin]}"></span>${fin}`;
+  b.onclick=()=>{
+    const s=state.filters.finalites;
+    s.has(fin)?s.delete(fin):s.add(fin);
+    refreshAll();
+  };
+  tasksEl.appendChild(b);
+});
+const ghost=document.createElement("button");
+ghost.className="task ghost"; ghost.textContent="Tout voir"; ghost.onclick=resetAll;
+tasksEl.appendChild(ghost);
+function syncTasks(){
+  document.querySelectorAll(".task[data-fin]").forEach(b=>
+    b.setAttribute("aria-pressed",state.filters.finalites.has(b.dataset.fin)));
+}
+
+/* ================ FILTRES ================ */
+const filtersEl=document.getElementById("filters");
+function visibleTags(){
+  const sel=state.filters.finalites;
+  if(sel.size===0) return ALL_TAGS;
+  const out=[]; sel.forEach(f=>(TAG_TAXONOMY[f]||[]).forEach(t=>{if(!out.includes(t)) out.push(t);}));
+  return out;
+}
+function buildFilters(){
+  filtersEl.innerHTML="";
+  const groups=[
+    {key:"types",label:"Type d'entrée",vals:TYPES},
+    {key:"finalites",label:"Grandes finalités",vals:FINALITES,withDot:true},
+    {key:"tags",label:"Tags spécifiques",hint:"selon la finalité",vals:visibleTags()},
+    {key:"tarif",label:"Tarification",vals:TARIFS},
+    {key:"licences",label:"Licence",vals:LICENCES},
+    {key:"pays",label:"Pays d'origine",vals:PAYS},
+  ];
+  groups.forEach(g=>{
+    const row=document.createElement("div"); row.className="fgroup";
+    row.innerHTML=`<div class="label">${g.label}${g.hint?`<span class="hint">${g.hint}</span>`:""}</div>`;
+    const wrap=document.createElement("div"); wrap.className="chips";
+    g.vals.forEach(v=>{
+      const c=document.createElement("button"); c.className="chip"; c.type="button";
+      const dot=g.withDot?`<span class="dot" style="background:${FIN_COLORS[v]}"></span>`:"";
+      c.innerHTML=dot+v;
+      c.setAttribute("aria-pressed",state.filters[g.key].has(v));
+      c.onclick=()=>{
+        const s=state.filters[g.key];
+        s.has(v)?s.delete(v):s.add(v);
+        refreshAll();
+      };
+      wrap.appendChild(c);
+    });
+    row.appendChild(wrap); filtersEl.appendChild(row);
+  });
+  const r=document.createElement("button");
+  r.className="reset"; r.textContent="Réinitialiser les filtres"; r.onclick=resetAll;
+  filtersEl.appendChild(r);
+}
+function resetAll(){
+  state.search=""; document.getElementById("search").value="";
+  Object.values(state.filters).forEach(s=>s.clear());
+  refreshAll();
+}
+
+/* ================ FILTRAGE ================ */
+function matches(t){
+  const f=state.filters;
+  const ok=(key,arr)=> f[key].size===0 || arr.some(v=>f[key].has(v));
+  if(!ok("types",t.types)) return false;
+  if(!ok("finalites",t.finalites)) return false;
+  if(!ok("tags",t.tags)) return false;
+  if(!ok("tarif",[t.tarif])) return false;
+  if(!ok("licences",t.licences)) return false;
+  if(!ok("pays",t.pays)) return false;
+  if(state.search){
+    const q=state.search.toLowerCase();
+    const hay=(t.nom+" "+t.tags.join(" ")+" "+t.finalites.join(" ")+" "+t.pays_label).toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+/* ================ CARTE ================ */
+function cardEl(t,i){
+  const primary=t.finalites[0]||"Création & Génération";
+  const accent=FIN_COLORS[primary]||"#f4c842";
+  const card=document.createElement("article");
+  card.className="card"; card.style.setProperty("--accent",accent);
+  card.style.animationDelay=Math.min(i*0.018,.4)+"s";
+  const finTags=t.finalites.map((f,k)=>{
+    const c=FIN_COLORS[f]||"#ddd";
+    return k===0
+      ? `<span class="tag fin" style="background:${c}">${f}</span>`
+      : `<span class="tag fin alt" style="border-color:${c};color:${c==='#f4c842'?'#8a6a10':c}">${f}</span>`;
+  }).join("");
+  const typeTags=t.types.map(v=>`<span class="tag type">${v}</span>`).join("");
+  const tagTags=t.tags.map(v=>`<span class="feat">${v}</span>`).join("");
+  card.innerHTML=`
+    <div class="top">
+      <h3>${t.nom}</h3>
+      <span class="pays">${t.pays_label}</span>
+    </div>
+    <div class="meta">${finTags}${typeTags}</div>
+    ${tagTags?`<div class="feats">${tagTags}</div>`:""}
+    <div class="foot">
+      <span>${t.tarif}</span><span class="sep">·</span>
+      <span>${t.licences.join(" + ")||"—"}</span>
+    </div>`;
+  card.onclick=()=>openModal(t);
+  return card;
+}
+
+/* ================ RENDU CATALOGUE ================ */
+const grid=document.getElementById("grid"), countEl=document.getElementById("count");
+function render(){
+  const list=TOOLS.filter(matches);
+  countEl.innerHTML=`<b>${list.length}</b> outil${list.length>1?"s":""} sur ${TOOLS.length}`;
+  grid.innerHTML="";
+  if(!list.length){ grid.innerHTML=`<div class="empty">Aucun outil ne correspond à ces critères.</div>`; return; }
+  list.forEach((t,i)=>grid.appendChild(cardEl(t,i)));
+}
+
+/* ================ RENDU INLINE DE VUE D'ENSEMBLE ================ */
+const ovResultsEl=document.getElementById("ov-results");
+function renderOverviewResults(){
+  ovResultsEl.innerHTML="";
+  if(!hasAnyFilter()){
+    ovResultsEl.innerHTML=`<div class="ov-empty">Cliquez sur un nœud ou un ruban du diagramme pour voir les outils correspondants.</div>`;
+    return;
+  }
+  const list=TOOLS.filter(matches);
+  const head=document.createElement("div"); head.className="head";
+  head.innerHTML=`
+    <h3><b>${list.length}</b> outil${list.length>1?"s":""} correspondent à votre sélection</h3>
+    <div class="ctrl">
+      <button id="ov-goto">Voir dans le catalogue →</button>
+      <button id="ov-reset">Réinitialiser</button>
+    </div>`;
+  ovResultsEl.appendChild(head);
+  if(list.length===0){
+    const e=document.createElement("div"); e.className="ov-empty";
+    e.textContent="Aucun outil ne correspond à ces critères.";
+    ovResultsEl.appendChild(e);
+  } else {
+    const g=document.createElement("div"); g.className="ov-grid";
+    list.forEach((t,i)=>g.appendChild(cardEl(t,i)));
+    ovResultsEl.appendChild(g);
+  }
+  document.getElementById("ov-reset").onclick=resetAll;
+  document.getElementById("ov-goto").onclick=()=>{ setView("catalogue");
+    window.scrollTo({top:document.querySelector('.toolbar').offsetTop-10,behavior:'smooth'}); };
+}
+
+/* ================ VUE — SWITCH ================ */
+const tabCat=document.getElementById("tab-cat"), tabOv=document.getElementById("tab-ov");
+const catEl=document.getElementById("catalogue"), ovEl=document.getElementById("overview");
+function setView(v){
+  state.view=v; const cat=v==="catalogue";
+  tabCat.setAttribute("aria-selected",cat); tabOv.setAttribute("aria-selected",!cat);
+  catEl.hidden=!cat; ovEl.hidden=cat;
+  filtersEl.hidden=!cat; countEl.hidden=!cat;
+  if(!cat){ drawParcats(); renderOverviewResults(); }
+}
+tabCat.onclick=()=>setView("catalogue"); tabOv.onclick=()=>setView("overview");
+document.getElementById("search").addEventListener("input",e=>{state.search=e.target.value;refreshAll();});
+
+function refreshAll(){
+  syncTasks(); buildFilters(); render();
+  if(!ovEl.hidden){ renderOverviewResults(); drawParcats(); }
+}
+
+/* ================ DIAGRAMME EN PARALLÈLE ================ */
+const tip=document.getElementById("suntip");
+function showTip(e,html){ tip.style.opacity=1; tip.innerHTML=html; moveTip(e); }
+function moveTip(e){ tip.style.left=Math.min(window.innerWidth-280,e.clientX+14)+"px"; tip.style.top=(e.clientY+12)+"px"; }
+function hideTip(){ tip.style.opacity=0; }
+
+function drawParcats(){
+  const svg=d3.select("#parcats"); svg.selectAll("*").remove();
+  const W=980,H=560;
+  const margin={top:54,right:150,bottom:24,left:150};
+  const innerW=W-margin.left-margin.right;
+  const innerH=H-margin.top-margin.bottom;
+
+  const AXES=[
+    {key:"types",     label:"TYPE D'ENTRÉE",   vals:TYPES,      get:t=>t.types[0]    ||TYPES[0]},
+    {key:"finalites", label:"GRANDE FINALITÉ", vals:FINALITES,  get:t=>t.finalites[0]||FINALITES[0]},
+    {key:"tarif",     label:"TARIFICATION",    vals:TARIFS,     get:t=>t.tarif},
+    {key:"pays",      label:"PAYS D'ORIGINE",  vals:PAYS,       get:t=>t.pays[0]     ||PAYS[0]},
+  ];
+
+  const bandH=5, gap=22, nodeW=18;
+
+  const axisLayout=AXES.map((axis,idx)=>{
+    const groups={}; axis.vals.forEach(v=>groups[v]=[]);
+    TOOLS.forEach(t=>{ const v=axis.get(t); if(!groups[v]) groups[v]=[]; groups[v].push(t); });
+    const refAxis=AXES[idx+1]||AXES[idx-1];
+    Object.values(groups).forEach(arr=>{
+      arr.sort((a,b)=> refAxis.vals.indexOf(refAxis.get(a))-refAxis.vals.indexOf(refAxis.get(b)));
+    });
+    const nonEmpty=axis.vals.filter(v=>groups[v].length>0);
+    const totalH=TOOLS.length*bandH + (nonEmpty.length-1)*gap;
+    let y=margin.top + (innerH-totalH)/2;
+    const x=margin.left + (idx/(AXES.length-1))*innerW;
+    const groupRects=[]; const toolY=new Map();
+    nonEmpty.forEach(v=>{
+      const arr=groups[v]; const y0=y;
+      arr.forEach(t=>{ toolY.set(t,y+bandH/2); y+=bandH; });
+      groupRects.push({val:v,y0,y1:y,count:arr.length,tools:arr});
+      y+=gap;
+    });
+    return {axis,x,groupRects,toolY,idx};
+  });
+
+  /* RUBANS d'abord (sous les nœuds) */
+  const gRibbons=svg.append("g").attr("class","ribbons");
+  const ribbonSel=gRibbons.selectAll("path")
+    .data(TOOLS).join("path")
+      .attr("class","parcat-ribbon")
+      .attr("d",t=>{
+        const pts=axisLayout.map(l=>({x:l.x,y:l.toolY.get(t)}));
+        let d=`M ${pts[0].x},${pts[0].y}`;
+        for(let j=0;j<pts.length-1;j++){
+          const p1=pts[j], p2=pts[j+1], cx=(p1.x+p2.x)/2;
+          d+=` C ${cx},${p1.y} ${cx},${p2.y} ${p2.x},${p2.y}`;
+        }
+        return d;
+      })
+      .attr("fill","none")
+      .attr("stroke",t=>FIN_COLORS[t.finalites[0]||"Création & Génération"])
+      .attr("stroke-width",bandH-0.5)
+      .attr("opacity",0.55)
+      .style("cursor","pointer")
+      .on("mouseenter",function(e,t){
+        gRibbons.selectAll("path").attr("opacity",0.08);
+        d3.select(this).attr("opacity",1).raise();
+        showTip(e,`<b>${t.nom}</b><br>${t.finalites.join(", ")}<br>${t.types.join(" · ")} · ${t.tarif} · ${t.pays_label}<br><i>${t.tags.join(", ")}</i>`);
+      })
+      .on("mousemove",moveTip)
+      .on("mouseleave",function(){ gRibbons.selectAll("path").attr("opacity",0.55); hideTip(); })
+      .on("click",function(e,t){ openModal(t); });
+
+  /* NŒUDS au-dessus */
+  axisLayout.forEach((layout)=>{
+    svg.append("text")
+      .attr("x",layout.x).attr("y",margin.top-22)
+      .attr("text-anchor","middle")
+      .style("font-weight","700").style("font-size","10.5px")
+      .style("letter-spacing",".09em").attr("fill","#807b73")
+      .text(layout.axis.label);
+
+    layout.groupRects.forEach(g=>{
+      const active=state.filters[layout.axis.key].has(g.val);
+      svg.append("rect")
+        .attr("class","parcat-node"+(active?" active":""))
+        .attr("x",layout.x-nodeW/2).attr("y",g.y0)
+        .attr("width",nodeW).attr("height",g.y1-g.y0).attr("rx",2)
+        .attr("fill",active?"var(--gold-edge)":"#3a332b")
+        .style("cursor","pointer")
+        .on("mouseenter",function(e){
+          const matches=new Set(g.tools);
+          gRibbons.selectAll("path").attr("opacity",t=>matches.has(t)?1:0.08);
+          showTip(e,`<b>${g.val}</b><br>${g.count} outil${g.count>1?"s":""}`);
+        })
+        .on("mousemove",moveTip)
+        .on("mouseleave",function(){ gRibbons.selectAll("path").attr("opacity",0.55); hideTip(); })
+        .on("click",()=>{
+          const s=state.filters[layout.axis.key];
+          s.has(g.val)?s.delete(g.val):s.add(g.val);
+          refreshAll();
+          ovResultsEl.scrollIntoView({behavior:"smooth",block:"start"});
+        });
+
+      const last=layout.idx===AXES.length-1;
+      const lx=last?layout.x-nodeW/2-10:layout.x+nodeW/2+10;
+      const txt=svg.append("text")
+        .attr("x",lx).attr("y",(g.y0+g.y1)/2)
+        .attr("text-anchor",last?"end":"start").attr("dy",".32em")
+        .style("font-size","11.5px").style("font-weight","600")
+        .attr("fill","#2e2a26").style("pointer-events","none");
+      txt.append("tspan").text(g.val);
+      txt.append("tspan").attr("dx",6).style("font-weight","400").attr("fill","#807b73").text(`(${g.count})`);
+    });
+  });
+}
+
+/* ================ MODAL ================ */
+const modal=document.getElementById("modal");
+const modalTitle=document.getElementById("modal-title");
+const modalBody=document.getElementById("modal-body");
+function openModal(t){
+  modalTitle.textContent=t.nom;
+  const row=(k,v,muted)=>`<div class="row"><span class="k">${k}</span><span class="v${muted?' muted':''}">${v}</span></div>`;
+  modalBody.innerHTML =
+    row("Grande finalité", t.finalites.join(", ")) +
+    row("Type d'entrée",   t.types.join(", ")) +
+    row("Tarification",    t.tarif) +
+    row("Licence",         t.licences.join(" + ")||"—") +
+    row("Éditeur (pays)",  t.pays_label) +
+    row("Site web",        "à compléter", true) +
+    `<div class="modal-tags">${t.tags.map(x=>`<span class="mtag">${x}</span>`).join("")}</div>`;
+  modal.hidden=false; document.body.style.overflow="hidden";
+}
+function closeModal(){ modal.hidden=true; document.body.style.overflow=""; }
+document.getElementById("modal-close").onclick=closeModal;
+modal.addEventListener("click",e=>{ if(e.target===modal) closeModal(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !modal.hidden) closeModal(); });
+
+/* ================ INIT ================ */
+buildFilters(); render();
+</script>
+</body>
+</html>
