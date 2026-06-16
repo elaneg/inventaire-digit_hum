@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boîte à outils IA — DIGIT_HUM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="hero">
+    <div class="mosaic" aria-hidden="true">
+      <span style="background:#e87a6e"></span><span style="background:#f4c842"></span><span></span><span style="background:#9ac572"></span><span style="background:#b59cd6"></span>
+      <span style="background:#f4c842"></span><span style="background:#e87a6e"></span><span style="background:#9ac572"></span><span style="background:#b59cd6"></span><span></span>
+      <span></span><span style="background:#9ac572"></span><span style="background:#b59cd6"></span><span style="background:#e87a6e"></span><span style="background:#f4c842"></span>
+      <span style="background:#b59cd6"></span><span></span><span style="background:#e87a6e"></span><span style="background:#f4c842"></span><span style="background:#9ac572"></span>
+    </div>
+    <div class="crumb">Accueil &rsaquo; Ressources &rsaquo; <b>Boîte à outils</b></div>
+    <h1>Inventaire d’IA</h1>
+    <div class="sub">Repérer, comparer, choisir</div>
+    <p class="intro">Inventaire raisonné d'outils d'intelligence artificielle utiles aux humanités numériques.
+      Filtrez par usage, modèle économique ou éditeur — ou laissez-vous guider par ce que vous souhaitez faire.
+      <a href="#">Suggérer un outil</a>.</p>
+  </header>
+
+  <section class="chooser" aria-label="Guide">
+    <div class="eyebrow">Par où commencer</div>
+    <h2>Que souhaitez-vous faire&nbsp;?</h2>
+    <div class="tasks" id="tasks"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="seg" role="tablist" aria-label="Mode d'affichage">
+      <button id="tab-cat" role="tab" aria-selected="true">Catalogue</button>
+      <button id="tab-ov"  role="tab" aria-selected="false">Vue d'ensemble</button>
+    </div>
+    <div class="search" id="searchWrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Rechercher un outil, un mot-clé…" aria-label="Recherche">
+    </div>
+    <button id="btn-export" class="task" title="Exporter la liste actuelle au format CSV" style="padding: 9px 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exporter en CSV
+    </button>
+  </div>
+
+  <div class="filters" id="filters"></div>
+
+  <div id="catalogue">
+    <div class="count" id="count"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="overview" id="overview" hidden>
+    <div class="hint">Chaque pétale externe représente un outil, regroupé par finalité. Cliquez sur une zone pour filtrer automatiquement le catalogue.</div>
+    <div class="sun-wrap">
+      <svg id="sun" width="460" height="460" viewBox="0 0 460 460" role="img" aria-label="Répartition des outils par finalité"></svg>
+      <div class="legend" id="legend"><h4>Finalités</h4></div>
+    </div>
+  </div>
+
+  <footer><b>Prototype connecté</b> — données extraites dynamiquement de la base de données. Palette et typographie alignées sur le gabarit DIGIT_HUM.</footer>
+</div>
+<div id="suntip"></div>
+
+<script>
+/* ---------------- ÉTAT VARIABLE & GLOBALES ---------------- */
+let TOOLS = [];       
+let FIN_COLORS = {};  
+let FACETS = [];      
+
+const state = {
+  view: "catalogue",
+  search: "",
+  filters: { finalite: new Set(), fonctions: new Set(), eco: new Set(), pays: new Set(), mode: new Set(), integration: new Set() }
+};
+
+const TASKS = [
+  ["Analyse & Traitement", "Analyse & Traitement"],
+  ["Création & Génération", "Création & Génération"],
+  ["Recherche & Veille", "Recherche & Veille"],
+  ["Traduction & Correction", "Traduction & Correction"],
+];
+
+const BASE_PALETTE = ["#cfa4a9", "#e2cc88", "#dca984", "#a8b9c4", "#c5b0af", "#bcc7aa", "#d7beaa"];
+
+function initFacets() {
+  FACETS = [
+   ["fonctions", "Tags spécifiques", [...new Set(TOOLS.flatMap(t => t.fonctions))].sort()],
+    ["eco", "Tarif", [...new Set(TOOLS.map(t => t.eco))].sort()],
+    ["pays", "Pays d'origine", [...new Set(TOOLS.map(t => t.pays))].sort()],
+    ["mode", "Licence", [...new Set(TOOLS.map(t => t.mode))].sort()],
+    ["integration", "Type d'entrée", [...new Set(TOOLS.map(t => t.integration))].sort()],
+  ];
+}
+
+function initColors() {
+  const uniqueFinalites = [...new Set(TOOLS.map(t => t.finalite))];
+  FIN_COLORS = {};
+  uniqueFinalites.forEach((f, index) => {
+    FIN_COLORS[f] = BASE_PALETTE[index % BASE_PALETTE.length];
+  });
+}
+
+/* ---------------- ACCÈS À LA BDD (PHP) ---------------- */
+async function chargerDonneesDepuisBDD() {
+  try {
+    const response = await fetch("%C2%96api.php");
+    if (!response.ok) throw new Error("Impossible de joindre le script api.php");
+    
+    TOOLS = await response.json();
+    
+    initColors();
+    initFacets();
+    buildTasks();
+    buildFilters();
+    render();
+  } catch (error) {
+    console.error("Erreur de chargement BDD :", error);
+    document.getElementById("grid").innerHTML = `<div class="empty">Erreur de chargement : assurez-vous que api.php est présent sur votre serveur local Apache/MySQL.</div>`;
+  }
+}
+
+/* ---------------- GUIDE D'ENTRÉE ---------------- */
+const tasksEl = document.getElementById("tasks");
+function buildTasks() {
+  tasksEl.innerHTML = "";
+  TASKS.forEach(([label, fn]) => {
+    const b = document.createElement("button");
+    b.className = "task"; b.textContent = label; b.dataset.fn = fn; b.setAttribute("aria-pressed", "false");
+    b.onclick = () => {
+      const s = state.filters.finalite;
+      s.has(fn) ? s.delete(fn) : s.add(fn);
+      syncTasks(); buildFilters(); render();
+    };
+    tasksEl.appendChild(b);
+  });
+  const ghost = document.createElement("button");
+  ghost.className = "task ghost"; ghost.textContent = "Tout voir";
+  ghost.onclick = resetAll;
+  tasksEl.appendChild(ghost);
+}
+
+function syncTasks() {
+  document.querySelectorAll(".task[data-fn]").forEach(b =>
+    b.setAttribute("aria-pressed", state.filters.finalite.has(b.dataset.fn)));
+}
+
+/* ---------------- FILTRES ---------------- */
+const filtersEl = document.getElementById("filters");
+function buildFilters() {
+  if (!TOOLS.length) return;
+  filtersEl.innerHTML = "";
+  FACETS.forEach(([key, label, vals]) => {
+    const g = document.createElement("div"); g.className = "fgroup";
+    g.innerHTML = `<div class="label">${label}</div>`;
+    const wrap = document.createElement("div"); wrap.className = "chips";
+    vals.forEach(v => {
+      if (!v) return; 
+      const c = document.createElement("button");
+      c.className = "chip"; c.textContent = v;
+      c.setAttribute("aria-pressed", state.filters[key].has(v));
+      c.onclick = () => {
+        const s = state.filters[key];
+        s.has(v) ? s.delete(v) : s.add(v);
+        if (key === "finalite") syncTasks();
+        buildFilters(); render();
+      };
+      wrap.appendChild(c);
+    });
+    g.appendChild(wrap); filtersEl.appendChild(g);
+  });
+  const r = document.createElement("button");
+  r.className = "reset"; r.textContent = "Réinitialiser les filtres";
+  r.onclick = resetAll; filtersEl.appendChild(r);
+}
+
+function resetAll() {
+  state.search = ""; document.getElementById("search").value = "";
+  Object.values(state.filters).forEach(s => s.clear());
+  syncTasks(); buildFilters(); render();
+}
+
+/* ---------------- FILTRAGE ---------------- */
+function matches(t) {
+  const f = state.filters;
+  const inFacet = (key, val) => f[key].size === 0 || (Array.isArray(val) ? val.some(v => f[key].has(v)) : f[key].has(val));
+  if (!inFacet("finalite", t.finalite)) return false;
+  if (!inFacet("fonctions", t.fonctions)) return false;
+  if (!inFacet("eco", t.eco)) return false;
+  if (!inFacet("pays", t.pays)) return false;
+  if (!inFacet("mode", t.mode)) return false;
+  if (!inFacet("integration", t.integration)) return false;
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    const hay = (t.nom + " " + t.desc + " " + t.fonctions.join(" ") + " " + t.editeur).toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+/* ---------------- RENDU CARTES ---------------- */
+const grid = document.getElementById("grid");
+const countEl = document.getElementById("count");
+function render() {
+  const list = TOOLS.filter(matches);
+  countEl.innerHTML = `<b>${list.length}</b> outil${list.length > 1 ? "s" : ""} sur ${TOOLS.length}`;
+  grid.innerHTML = "";
+  if (!list.length) { grid.innerHTML = `<div class="empty">Aucun outil ne correspond à ces critères.</div>`; return; }
+  list.forEach((t, i) => {
+    const accent = FIN_COLORS[t.finalite] || "var(--gold)";
+    const card = document.createElement("article");
+    card.className = "card"; card.style.setProperty("--accent", accent);
+    card.style.animationDelay = (i * 0.04) + "s";
+    card.innerHTML = `
+      <div class="top">
+        <h3>${t.nom}</h3>
+        <span class="pays">${t.pays}</span>
+      </div>
+      <div class="meta">
+        <span class="tag fin">${t.finalite}</span>
+        <span class="tag eco">${t.eco}</span>
+        <span class="tag">${t.mode}</span>
+      </div>
+      <div class="feats">${t.fonctions.map(f => `<span class="feat">${f}</span>`).join("")}</div>
+      <button class="more">Lire la description ＋</button>
+      <div class="desc"><p>${t.desc}</p><p class="editeur">Éditeur : ${t.editeur} — ${t.integration}</p></div>`;
+    const btn = card.querySelector(".more");
+    btn.onclick = () => {
+      const o = card.classList.toggle("open");
+      btn.textContent = o ? "Réduire －" : "Lire la description ＋";
+    };
+    grid.appendChild(card);
+  });
+}
+
+/* ---------------- VUES TAB ---------------- */
+const tabCat = document.getElementById("tab-cat"), tabOv = document.getElementById("tab-ov");
+const catEl = document.getElementById("catalogue"), ovEl = document.getElementById("overview");
+const searchWrap = document.getElementById("searchWrap");
+const btnExport = document.getElementById("btn-export");
+
+function setView(v) {
+  state.view = v;
+  const cat = v === "catalogue";
+  tabCat.setAttribute("aria-selected", cat); tabOv.setAttribute("aria-selected", !cat);
+  catEl.hidden = !cat; ovEl.hidden = cat;
+  filtersEl.hidden = !cat; countEl.hidden = !cat; searchWrap.style.visibility = cat ? "visible" : "hidden";
+  btnExport.style.display = cat ? "inline-flex" : "none";
+  if (!cat) drawSun();
+}
+tabCat.onclick = () => setView("catalogue");
+tabOv.onclick = () => setView("overview");
+
+document.getElementById("search").addEventListener("input", e => { state.search = e.target.value; render(); });
+
+/* ---------------- FONCTION EXPORT CSV ---------------- */
+btnExport.onclick = () => {
+  const outilsAExporter = TOOLS.filter(matches);
+  if (outilsAExporter.length === 0) {
+    alert("Aucun outil à exporter.");
+    return;
+  }
+
+  // En-têtes du fichier CSV
+  const headers = ["Nom", "Grandes Finalités", "Tags Spécifiques", "Tarif", "Licence", "Pays d'origine", "Type d'entrée", "Éditeur", "Description"];
+  
+  // Transformation des lignes
+  const rows = outilsAExporter.map(t => [
+    t.nom,
+    t.finalite,
+    t.fonctions.join(", "),
+    t.eco,
+    t.mode,
+    t.pays,
+    t.integration,
+    t.editeur,
+    t.desc
+  ]);
+
+  // Génération du contenu textuel au format CSV (séparateur point-virgule pour Excel FR)
+  // Ajout du BOM UTF-8 (\uFEFF) pour éviter les problèmes d'accents sous Excel
+  const csvContent = "\uFEFF" + [headers, ...rows]
+    .map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(";"))
+    .join("\n");
+
+  // Création du lien de téléchargement automatique
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `inventaire_ia_export_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+/* ---------------- SUNBURST GRAPHIQUE ---------------- */
+function lighten(hex, amt) {
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r + (255 - r) * amt); g = Math.round(g + (255 - g) * amt); b = Math.round(b + (255 - b) * amt);
+  return `rgb(${r},${g},${b})`;
+}
+const tip = document.getElementById("suntip");
+function drawSun() {
+  const svg = d3.select("#sun"); 
+  svg.selectAll("*").remove();
+  const W = 460, R = W / 2, g = svg.append("g").attr("transform", `translate(${R},${R})`);
+
+  const fins = [...new Set(TOOLS.map(t => t.finalite))];
+  const root = {
+    name: "Outils IA", children: fins.map(f => ({
+      name: f, color: FIN_COLORS[f],
+      children: TOOLS.filter(t => t.finalite === f).map(t => ({ name: t.nom, value: 1, tool: t }))
+    }))
+  };
+  const hierarchy = d3.hierarchy(root).sum(d => d.value).sort((a, b) => b.value - a.value);
+  const partition = d3.partition().size([2 * Math.PI, R - 10]);
+  partition(hierarchy);
+  const arc = d3.arc()
+    .startAngle(d => d.x0).endAngle(d => d.x1)
+    .padAngle(.006).padRadius(R / 3)
+    .innerRadius(d => d.y0).outerRadius(d => d.y1 - 1);
+
+  g.selectAll("path")
+    .data(hierarchy.descendants().filter(d => d.depth))
+    .join("path")
+      .attr("class", "sun-arc")
+      .attr("d", arc)
+      .attr("fill", d => {
+        const fin = d.depth === 1 ? d.data.name : d.parent.data.name;
+        const base = FIN_COLORS[fin] || "var(--gold)";
+        return d.depth === 1 ? base : lighten(base, .35 + (d.parent.children.indexOf(d) % d.parent.children.length) / (d.parent.children.length) * 0.4);
+      })
+      .attr("stroke", "#f4f2ec").attr("stroke-width", 1)
+      .on("mousemove", (e, d) => {
+        tip.style.opacity = 1; tip.style.left = (e.clientX + 14) + "px"; tip.style.top = (e.clientY + 12) + "px";
+        tip.innerHTML = d.depth === 1
+          ? `<b>${d.data.name}</b><br>${d.children.length} outil(s)`
+          : `<b>${d.data.name}</b><br>${d.data.tool.finalite} · ${d.data.tool.eco}`;
+      })
+      .on("mouseleave", () => tip.style.opacity = 0)
+      .on("click", (e, d) => {
+        const fin = d.depth === 1 ? d.data.name : d.parent.data.name;
+        Object.values(state.filters).forEach(s => s.clear());
+        state.filters.finalite.add(fin); state.search = "";
+        document.getElementById("search").value = "";
+        if (d.depth > 1) { state.search = d.data.name; document.getElementById("search").value = d.data.name; }
+        syncTasks(); buildFilters(); render(); setView("catalogue");
+        window.scrollTo({ top: document.querySelector('.toolbar').offsetTop - 10, behavior: 'smooth' });
+      });
+
+  g.selectAll("text.fin")
+    .data(hierarchy.descendants().filter(d => d.depth === 1 && (d.x1 - d.x0) > 0.14))
+    .join("text").attr("class", "fin")
+      .attr("transform", d => {
+        const a = (d.x0 + d.x1) / 2 * 180 / Math.PI - 90, r = (d.y0 + d.y1) / 2;
+        return `rotate(${a}) translate(${r},0) rotate(${a > 90 ? 180 : 0})`;
+      })
+      .attr("text-anchor", "middle").attr("dy", ".32em")
+      .attr("fill", "#2a221c")
+      .style("font-size", "10.5px").style("font-weight", "700")
+      .each(function (d) {
+        const w = d.data.name.split(" ");
+        const t = d3.select(this);
+        if (w.length > 1 && d.data.name.length > 12) {
+          t.append("tspan").attr("x", 0).attr("dy", "-0.2em").text(w.slice(0, Math.ceil(w.length / 2)).join(" "));
+          t.append("tspan").attr("x", 0).attr("dy", "1.1em").text(w.slice(Math.ceil(w.length / 2)).join(" "));
+        } else t.text(d.data.name);
+      });
+
+  g.append("circle").attr("r", hierarchy.children ? d3.min(hierarchy.children, c => c.y0) : 40).attr("fill", "var(--surface)");
+  g.append("text").attr("text-anchor", "middle").attr("dy", "-.2em")
+    .style("font-family", "Bricolage Grotesque,serif").style("font-size", "14px").style("font-weight", "600").attr("fill", "var(--ink)").text("Outils IA");
+  g.append("text").attr("text-anchor", "middle").attr("dy", "1.3em")
+    .style("font-size", "10px").attr("fill", "var(--muted)").text(TOOLS.length + " références");
+
+  const lg = document.getElementById("legend");
+  lg.querySelectorAll(".row").forEach(n => n.remove());
+  fins.forEach(f => {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = `<span class="sw" style="background:${FIN_COLORS[f]}"></span>${f} <span style="color:var(--muted)">(${TOOLS.filter(t => t.finalite === f).length})</span>`;
+    row.onclick = () => {
+      Object.values(state.filters).forEach(s => s.clear());
+      state.filters.finalite.add(f);
+      syncTasks(); buildFilters(); render(); setView("catalogue");
+    };
+    lg.appendChild(row);
+  });
+}
+
+/* ---------------- EXECUTION GLOBAL ---------------- */
+chargerDonneesDepuisBDD();
+</script>
+</body>
+</html>
